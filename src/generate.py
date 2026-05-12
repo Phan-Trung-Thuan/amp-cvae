@@ -3,13 +3,31 @@ import torch.nn.functional as F
 from models import AMPCVAE
 import os
 
-def generate_peptides(model, vocab, target_charge, target_hydro, target_struct_idx, target_activity_vec, 
-                      num_samples=5, max_len=100, temperature=1.0):
+def generate_peptides(model, vocab, target_charge, target_hydro, target_struct, target_activity, 
+                      struct_enc=None, act_bin=None, num_samples=5, max_len=100, temperature=1.0):
     """
     Standalone function to input target properties + random noise to generate new peptides.
+    target_struct: Can be an int index, or a string (requires struct_enc)
+    target_activity: Can be a list of ints/floats, or a list of strings (requires act_bin)
     """
     device = next(model.parameters()).device
     model.eval()
+    
+    # Process structure target
+    if isinstance(target_struct, str):
+        if struct_enc is None:
+            raise ValueError("struct_enc must be provided if target_struct is a string.")
+        target_struct_idx = struct_enc.transform([target_struct])[0]
+    else:
+        target_struct_idx = target_struct
+        
+    # Process activity target
+    if isinstance(target_activity[0], str):
+        if act_bin is None:
+            raise ValueError("act_bin must be provided if target_activity contains strings.")
+        target_activity_vec = act_bin.transform([target_activity])[0]
+    else:
+        target_activity_vec = target_activity
     
     generated_sequences = []
     

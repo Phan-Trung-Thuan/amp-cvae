@@ -4,10 +4,11 @@ from dataset import get_dataloaders
 from models import AMPCVAE
 from loss import MultiTaskCVAELoss
 import os
+from tqdm import tqdm
 
-def train_cvae(csv_path, epochs=10, batch_size=32, seq_type='lstm', lr=1e-3):
+def train_cvae(csv_path, epochs=100, batch_size=32, seq_type='lstm', lr=1e-3):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Training on {device} using {seq_type} architecture...")
+    print(f"Training on {device} using {seq_type} architecture for {epochs} epochs...")
     
     # 1. Get Data
     train_loader, val_loader, vocab, struct_enc, act_bin, config = get_dataloaders(csv_path, batch_size=batch_size)
@@ -29,13 +30,26 @@ def train_cvae(csv_path, epochs=10, batch_size=32, seq_type='lstm', lr=1e-3):
     )
     optimizer = optim.Adam(model.parameters(), lr=lr)
     
+    # History dictionary to store metrics
+    history = {
+        'train_total_loss': [], 'val_total_loss': [],
+        'train_recon_loss': [], 'val_recon_loss': [],
+        'train_kl_loss': [], 'val_kl_loss': [],
+        'train_charge_loss': [], 'val_charge_loss': [],
+        'train_hydro_loss': [], 'val_hydro_loss': [],
+        'train_struct_loss': [], 'val_struct_loss': [],
+        'train_activity_loss': [], 'val_activity_loss': []
+    }
+    
     # 4. Training Loop
     for epoch in range(epochs):
         model.train()
         train_loss = 0.0
         train_metrics = {}
         
-        for batch in train_loader:
+        # tqdm for training
+        train_pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]", leave=False)
+        for batch in train_pbar:
             seq = batch['sequence'].to(device)
             charge = batch['charge'].to(device)
             hydro = batch['hydrophobicity'].to(device)
@@ -70,12 +84,16 @@ def train_cvae(csv_path, epochs=10, batch_size=32, seq_type='lstm', lr=1e-3):
             for k, v in losses_dict.items():
                 train_metrics[k] = train_metrics.get(k, 0.0) + v.item()
                 
+            train_pbar.set_postfix({'loss': loss.item()})
+                
         # Validation Loop
         model.eval()
         val_loss = 0.0
         val_metrics = {}
+        
+        val_pbar = tqdm(val_loader, desc=f"Epoch {epoch+1}/{epochs} [Val]", leave=False)
         with torch.no_grad():
-            for batch in val_loader:
+            for batch in val_pbar:
                 seq = batch['sequence'].to(device)
                 charge = batch['charge'].to(device)
                 hydro = batch['hydrophobicity'].to(device)
@@ -100,6 +118,8 @@ def train_cvae(csv_path, epochs=10, batch_size=32, seq_type='lstm', lr=1e-3):
                 for k, v in losses_dict.items():
                     val_metrics[k] = val_metrics.get(k, 0.0) + v.item()
                     
+                val_pbar.set_postfix({'loss': loss.item()})
+                    
         # Average metrics
         train_loss /= len(train_loader)
         if len(val_loader) > 0:
@@ -108,13 +128,16 @@ def train_cvae(csv_path, epochs=10, batch_size=32, seq_type='lstm', lr=1e-3):
         for k in train_metrics: train_metrics[k] /= len(train_loader)
         if len(val_loader) > 0:
             for k in val_metrics: val_metrics[k] /= len(val_loader)
+            
+        # Store in history
+        history['train_total_loss'].append(train_loss)
+        history['val_total_loss'].append(val_loss)
+        for k in ['recon_loss', 'kl_loss', 'charge_loss', 'hydro_loss', 'struct_loss', 'activity_loss']:
+            history[f'train_{k}'].append(train_metrics[k])
+            if len(val_loader) > 0:
+                history[f'val_{k}'].append(val_metrics[k])
         
-        print(f"Epoch {epoch+1}/{epochs}")
-        print(f"  [Train] Total Loss: {train_loss:.4f} | " + " | ".join([f"{k}: {v:.4f}" for k, v in train_metrics.items() if k != 'total_loss']))
-        if len(val_loader) > 0:
-            print(f"  [Val]   Total Loss: {val_loss:.4f} | " + " | ".join([f"{k}: {v:.4f}" for k, v in val_metrics.items() if k != 'total_loss']))
-        
-    print("Training complete!")
+    print(f"Training complete for {seq_type}!")
     
     # Save the model
     checkpoint_dir = os.path.join(os.path.dirname(__file__), "..", "checkpoints")
@@ -123,7 +146,7 @@ def train_cvae(csv_path, epochs=10, batch_size=32, seq_type='lstm', lr=1e-3):
     torch.save(model.state_dict(), model_path)
     print(f"Model saved to {model_path}")
     
-    return model, vocab, struct_enc, act_bin
+    return model, vocab, struct_enc, act_bin, history
 
 if __name__ == "__main__":
     csv_file = os.path.join(os.path.dirname(__file__), "..", "data", "aps_database.csv")

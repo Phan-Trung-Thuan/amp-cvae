@@ -45,6 +45,10 @@ The input to the decoder is an 804-dimensional vector comprising:
 
 **⚠️ Note for Kaggle Users:** Please use the **GPU T4x2** accelerator instead of **GPU P100**. The latest versions of PyTorch no longer support the older architecture of the P100 GPU (`sm_60`), which will cause a `CUDA error: no kernel image is available`. The T4 GPUs are fully supported.
 
+### Training Results
+
+The `kaggle_notebook.ipynb` will train all baseline sequence encoders (`rnn`, `lstm`, `gru`, `transformer`) for 100 epochs, display metrics with `tqdm` progress bars, and plot loss component charts (Reconstruction, KL, Charge, Hydrophobicity, Structure, and Activity) so that their final performances can be compared. Once trained, a comparison table will be printed showing the final validation metrics of each model.
+
 ### Training
 
 To train the model on your local machine:
