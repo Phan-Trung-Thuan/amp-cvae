@@ -6,8 +6,11 @@ from loss import MultiTaskCVAELoss
 import os
 from tqdm import tqdm
 
-def train_cvae(csv_path, epochs=100, batch_size=32, seq_type='lstm', lr=1e-3):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def train_cvae(csv_path, epochs=100, batch_size=32, seq_type='lstm', lr=1e-3, device_id=None):
+    if device_id is not None and torch.cuda.device_count() > device_id:
+        device = torch.device(f'cuda:{device_id}')
+    else:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Training on {device} using {seq_type} architecture for {epochs} epochs...")
     
     # 1. Get Data
