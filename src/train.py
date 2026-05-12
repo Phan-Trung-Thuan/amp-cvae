@@ -14,6 +14,7 @@ def train_cvae(csv_path, epochs=100, batch_size=32, seq_type='lstm', lr=1e-3, de
     
     # 1. Get Data
     train_loader, val_loader, vocab, struct_enc, act_bin, config = get_dataloaders(csv_path, batch_size=batch_size)
+    print(f"[{seq_type.upper()}] Dataset loaded: {len(train_loader.dataset)} training samples, {len(val_loader.dataset)} validation samples.")
     
     # 2. Initialize Model
     model = AMPCVAE(
