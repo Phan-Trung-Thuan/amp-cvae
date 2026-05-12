@@ -108,9 +108,9 @@ def train_cvae(csv_path, epochs=10, batch_size=32, seq_type='lstm', lr=1e-3):
             for k in val_metrics: val_metrics[k] /= len(val_loader)
         
         print(f"Epoch {epoch+1}/{epochs}")
-        print(f"  [Train] Total Loss: {train_loss:.4f} | " + " | ".join([f"{k}: {v:.4f}" for k, v in train_metrics.items()]))
+        print(f"  [Train] Total Loss: {train_loss:.4f} | " + " | ".join([f"{k}: {v:.4f}" for k, v in train_metrics.items() if k != 'total_loss']))
         if len(val_loader) > 0:
-            print(f"  [Val]   Total Loss: {val_loss:.4f} | " + " | ".join([f"{k}: {v:.4f}" for k, v in val_metrics.items()]))
+            print(f"  [Val]   Total Loss: {val_loss:.4f} | " + " | ".join([f"{k}: {v:.4f}" for k, v in val_metrics.items() if k != 'total_loss']))
         
     print("Training complete!")
     
@@ -127,5 +127,8 @@ if __name__ == "__main__":
     csv_file = os.path.join(os.path.dirname(__file__), "..", "data", "aps_database.csv")
     if os.path.exists(csv_file):
         train_cvae(csv_file, epochs=2, batch_size=8, seq_type='lstm')
+    else:
+        print("Data file missing.")
+vae(csv_file, epochs=2, batch_size=8, seq_type='lstm')
     else:
         print("Data file missing.")
