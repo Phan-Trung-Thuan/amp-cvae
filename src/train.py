@@ -31,6 +31,7 @@ def train_cvae(csv_path, epochs=10, batch_size=32, seq_type='lstm', lr=1e-3):
     for epoch in range(epochs):
         model.train()
         train_loss = 0.0
+        train_metrics = {}
         
         for batch in train_loader:
             seq = batch['sequence'].to(device)
@@ -64,8 +65,52 @@ def train_cvae(csv_path, epochs=10, batch_size=32, seq_type='lstm', lr=1e-3):
             optimizer.step()
             
             train_loss += loss.item()
-            
-        print(f"Epoch {epoch+1}/{epochs} - Loss: {train_loss/len(train_loader):.4f}")
+            for k, v in losses_dict.items():
+                train_metrics[k] = train_metrics.get(k, 0.0) + v.item()
+                
+        # Validation Loop
+        model.eval()
+        val_loss = 0.0
+        val_metrics = {}
+        with torch.no_grad():
+            for batch in val_loader:
+                seq = batch['sequence'].to(device)
+                charge = batch['charge'].to(device)
+                hydro = batch['hydrophobicity'].to(device)
+                struct = batch['structure'].to(device)
+                activity = batch['activities'].to(device)
+                
+                x_enc = seq
+                x_dec_in = seq[:, :-1]
+                x_target = seq[:, 1:]
+                
+                recon_logits, mu, logvar, p_charge, p_hydro, p_struct, p_act = model(x_enc, x_dec_in)
+                
+                loss, losses_dict = criterion(
+                    recon_logits, x_target, mu, logvar,
+                    p_charge, charge,
+                    p_hydro, hydro,
+                    p_struct, struct,
+                    p_act, activity
+                )
+                
+                val_loss += loss.item()
+                for k, v in losses_dict.items():
+                    val_metrics[k] = val_metrics.get(k, 0.0) + v.item()
+                    
+        # Average metrics
+        train_loss /= len(train_loader)
+        if len(val_loader) > 0:
+            val_loss /= len(val_loader)
+        
+        for k in train_metrics: train_metrics[k] /= len(train_loader)
+        if len(val_loader) > 0:
+            for k in val_metrics: val_metrics[k] /= len(val_loader)
+        
+        print(f"Epoch {epoch+1}/{epochs}")
+        print(f"  [Train] Total Loss: {train_loss:.4f} | " + " | ".join([f"{k}: {v:.4f}" for k, v in train_metrics.items()]))
+        if len(val_loader) > 0:
+            print(f"  [Val]   Total Loss: {val_loss:.4f} | " + " | ".join([f"{k}: {v:.4f}" for k, v in val_metrics.items()]))
         
     print("Training complete!")
     
