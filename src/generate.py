@@ -59,10 +59,58 @@ def generate_peptides(model, vocab, target_charge, target_hydro, target_struct_i
             
     return generated_sequences
 
+def predict_properties(model, vocab, sequences, struct_enc=None, act_bin=None):
+    """
+    Evaluates a list of peptide sequences using the Encoder 
+    to predict their bio-features (charge, hydrophobicity, structure, activities).
+    """
+    device = next(model.parameters()).device
+    model.eval()
+    
+    predictions = []
+    
+    with torch.no_grad():
+        for seq in sequences:
+            # Tokenize sequence
+            tokens = vocab.encode(seq)
+            seq_tensor = torch.tensor([tokens], dtype=torch.long).to(device)
+            
+            # Pass through encoder
+            mu, logvar, charge, hydro, struct_logits, activity_logits = model.encoder(seq_tensor)
+            
+            pred_charge = charge.item()
+            pred_hydro = hydro.item()
+            
+            struct_probs = torch.softmax(struct_logits, dim=-1)
+            pred_struct_idx = torch.argmax(struct_probs, dim=-1).item()
+            pred_struct = struct_enc.inverse_transform([pred_struct_idx])[0] if struct_enc else pred_struct_idx
+            
+            activity_probs = torch.sigmoid(activity_logits).squeeze(0).cpu().numpy()
+            
+            # Find activities with probability > 0.5
+            active_indices = (activity_probs > 0.5).nonzero()[0]
+            if act_bin:
+                pred_activities = [act_bin.classes_[i] for i in active_indices]
+            else:
+                pred_activities = active_indices.tolist()
+            
+            predictions.append({
+                'sequence': seq,
+                'charge': pred_charge,
+                'hydrophobicity': pred_hydro,
+                'structure': pred_struct,
+                'activities': pred_activities
+            })
+            
+    return predictions
+
 if __name__ == "__main__":
     print("Testing Generation Script Structure...")
-    print("Run train.py to train the model, load it here, then call generate_peptides().")
+    print("Run train.py to train the model, load it here, then call generate_peptides() and predict_properties().")
     # Example logic:
     # model.load_state_dict(torch.load('checkpoints/amp_cvae_lstm.pth'))
     # new_peptides = generate_peptides(model, vocab, target_charge=2.0, target_hydro=50.0, target_struct_idx=1, target_activity_vec=[1, 0, ...])
-    # print(new_peptides)
+    # print("Generated:", new_peptides)
+    # preds = predict_properties(model, vocab, new_peptides)
+    # for p in preds:
+    #     print(p)
