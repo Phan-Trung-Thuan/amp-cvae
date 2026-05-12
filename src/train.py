@@ -4,7 +4,6 @@ from dataset import get_dataloaders
 from models import AMPCVAE
 from loss import MultiTaskCVAELoss
 import os
-from tqdm import tqdm
 
 def train_cvae(csv_path, epochs=100, batch_size=32, seq_type='lstm', lr=1e-3, device_id=None):
     if device_id is not None and torch.cuda.device_count() > device_id:
@@ -50,9 +49,7 @@ def train_cvae(csv_path, epochs=100, batch_size=32, seq_type='lstm', lr=1e-3, de
         train_loss = 0.0
         train_metrics = {}
         
-        # tqdm for training
-        train_pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]", leave=False)
-        for batch in train_pbar:
+        for batch in train_loader:
             seq = batch['sequence'].to(device)
             charge = batch['charge'].to(device)
             hydro = batch['hydrophobicity'].to(device)
@@ -87,16 +84,13 @@ def train_cvae(csv_path, epochs=100, batch_size=32, seq_type='lstm', lr=1e-3, de
             for k, v in losses_dict.items():
                 train_metrics[k] = train_metrics.get(k, 0.0) + v.item()
                 
-            train_pbar.set_postfix({'loss': loss.item()})
-                
         # Validation Loop
         model.eval()
         val_loss = 0.0
         val_metrics = {}
         
-        val_pbar = tqdm(val_loader, desc=f"Epoch {epoch+1}/{epochs} [Val]", leave=False)
         with torch.no_grad():
-            for batch in val_pbar:
+            for batch in val_loader:
                 seq = batch['sequence'].to(device)
                 charge = batch['charge'].to(device)
                 hydro = batch['hydrophobicity'].to(device)
@@ -121,8 +115,6 @@ def train_cvae(csv_path, epochs=100, batch_size=32, seq_type='lstm', lr=1e-3, de
                 for k, v in losses_dict.items():
                     val_metrics[k] = val_metrics.get(k, 0.0) + v.item()
                     
-                val_pbar.set_postfix({'loss': loss.item()})
-                    
         # Average metrics
         train_loss /= len(train_loader)
         if len(val_loader) > 0:
@@ -139,6 +131,11 @@ def train_cvae(csv_path, epochs=100, batch_size=32, seq_type='lstm', lr=1e-3, de
             history[f'train_{k}'].append(train_metrics[k])
             if len(val_loader) > 0:
                 history[f'val_{k}'].append(val_metrics[k])
+
+        # Print progress every 10 epochs or on the first/last epoch to avoid too much output
+        if (epoch + 1) == 1 or (epoch + 1) % 10 == 0 or (epoch + 1) == epochs:
+            val_str = f" | Val Loss: {val_loss:.4f}" if len(val_loader) > 0 else ""
+            print(f"[{seq_type.upper()}] Epoch {epoch+1}/{epochs} - Train Loss: {train_loss:.4f}{val_str}")
         
     print(f"Training complete for {seq_type}!")
     
