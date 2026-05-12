@@ -23,6 +23,8 @@ def train_cvae(csv_path, epochs=10, batch_size=32, seq_type='lstm', lr=1e-3):
     # 3. Initialize Loss and Optimizer
     criterion = MultiTaskCVAELoss(
         kl_weight=0.1, # Beta-VAE parameter tuning might be required
+        charge_weight=0.1,  # Scale down charge loss (range ~ -12 to 64)
+        hydro_weight=0.01,  # Scale down hydro loss (range ~ 0 to 100)
         pad_idx=config['pad_idx']
     )
     optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -127,8 +129,5 @@ if __name__ == "__main__":
     csv_file = os.path.join(os.path.dirname(__file__), "..", "data", "aps_database.csv")
     if os.path.exists(csv_file):
         train_cvae(csv_file, epochs=2, batch_size=8, seq_type='lstm')
-    else:
-        print("Data file missing.")
-vae(csv_file, epochs=2, batch_size=8, seq_type='lstm')
     else:
         print("Data file missing.")
